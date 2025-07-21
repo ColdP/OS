@@ -1,0 +1,1732 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DesignOS</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Google Fonts: Inter and Noto Sans SC -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <!-- Google Material Symbols -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+
+    <style>
+        /* 自定义样式 */
+        :root {
+            --display-scale: 1.0; /* For display size adjustment */
+        }
+        body {
+            font-family: 'Inter', 'Noto Sans SC', sans-serif;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 20;
+        }
+
+        /* 启动加载环 */
+        .loader {
+            border: 4px solid rgba(255, 255, 255, 0.2);
+            border-left-color: #ffffff;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* 毛玻璃效果 */
+        .glass-effect {
+            background-color: rgba(255, 255, 255, 0.65);
+            backdrop-filter: blur(24px) saturate(180%);
+            -webkit-backdrop-filter: blur(24px) saturate(180%);
+            border: 1px solid rgba(209, 213, 219, 0.3);
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+        .dark .glass-effect {
+             background-color: rgba(30, 30, 30, 0.85);
+             border: 1px solid rgba(100, 100, 100, 0.3);
+        }
+
+        /* 应用抽屉动画 */
+        #app-drawer {
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s ease-out;
+            transform-origin: bottom center;
+        }
+        #app-drawer.hidden {
+            transform: translateY(20px) scale(0.95);
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        /* 任务栏动画 */
+        #taskbar-container {
+            transition: transform 0.3s ease-in-out;
+        }
+        #desktop.taskbar-hidden #taskbar-container {
+            transform: translateY(120%) translateX(-50%);
+        }
+        
+        /* 任务栏图标交互动画 */
+        .dock-icon { 
+            position: relative;
+            transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1); 
+        }
+        .dock-icon:hover { transform: scale(1.2) translateY(-6px); }
+        .dock-icon:active { transform: scale(1.1) translateY(-3px); transition-duration: 0.1s; }
+        
+        /* 应用抽屉图标动画 */
+        .app-icon-container {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.2s ease;
+        }
+        .app-icon-container:hover { background-color: rgba(0, 0, 0, 0.1); }
+        .dark .app-icon-container:hover { background-color: rgba(255, 255, 255, 0.1); }
+        .app-icon-container:active { transform: scale(0.95); transition-duration: 0.1s; }
+        #app-drawer:not(.hidden) .app-icon-container { opacity: 1; transform: translateY(0); }
+
+        /* 窗口系统样式 */
+        .window {
+            position: absolute;
+            width: 860px;
+            height: 600px;
+            border-radius: 12px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            resize: both;
+            min-width: 370px;
+            min-height: 400px;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+            transform-origin: center;
+        }
+        .window.hidden {
+            transform: scale(0.9);
+            opacity: 0;
+            pointer-events: none;
+        }
+        .window.minimizing {
+            transform: scale(0.8);
+            opacity: 0;
+            transition: transform 0.25s ease-in, opacity 0.25s ease-in;
+        }
+        .window.maximized {
+            width: 100vw !important;
+            height: 100vh !important;
+            top: 0 !important;
+            left: 0 !important;
+            border-radius: 0;
+            resize: none;
+        }
+
+        .title-bar {
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-left: 16px;
+            flex-shrink: 0;
+            cursor: grab;
+        }
+        .title-bar:active { cursor: grabbing; }
+        
+        .window-controls { display: flex; }
+        .window-controls button {
+            width: 46px;
+            height: 40px;
+            border: none;
+            background-color: transparent;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: background-color 0.2s ease;
+        }
+        .window-controls button:hover { background-color: rgba(0,0,0,0.1); }
+        .dark .window-controls button:hover { background-color: rgba(255,255,255,0.1); }
+        .window-controls .close-btn:hover { background-color: #e81123; color: white; }
+
+        .window-body { flex-grow: 1; display: flex; flex-direction: column; background-color: rgba(242, 242, 242, 0.8); overflow: hidden; transition: background-color 0.3s; }
+        .dark .window-body { background-color: rgba(29, 29, 29, 0.9); }
+        .sidebar { width: 250px; flex-shrink: 0; padding: 8px; border-right: 1px solid rgba(0,0,0,0.08); display: flex; flex-direction: column; transition: border-color 0.3s; }
+        .dark .sidebar { border-right-color: rgba(255,255,255,0.08); }
+        .sidebar-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s ease;
+            width: 100%;
+        }
+        .sidebar-item:hover { background-color: rgba(0,0,0,0.05); }
+        .dark .sidebar-item:hover { background-color: rgba(255,255,255,0.05); }
+        .sidebar-item.active { background-color: rgba(0, 122, 255, 0.1); color: #007aff; font-weight: 500; }
+        .dark .sidebar-item.active { background-color: rgba(50, 150, 255, 0.2); }
+        
+        .user-profile-item { margin-bottom: 8px; }
+        .user-profile-item img { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; }
+        .user-profile-item .user-info { display: flex; flex-direction: column; justify-content: center; }
+        .user-profile-item .username { font-weight: 600; line-height: 1.2; }
+        .user-profile-item .email { font-size: 12px; color: #666; line-height: 1.2; }
+        .dark .user-profile-item .email { color: #aaa; }
+
+        .sidebar-scroll-area, .content-area { flex-grow: 1; overflow-y: auto; }
+        .sidebar-scroll-area { padding-right: 4px; }
+        .content-area { padding: 24px 36px; }
+        
+        ::-webkit-scrollbar { width: 12px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb {
+            background-color: rgba(0,0,0,0.2);
+            border-radius: 10px;
+            border: 3px solid transparent;
+            background-clip: content-box;
+        }
+        ::-webkit-scrollbar-thumb:hover { background-color: rgba(0,0,0,0.4); }
+        .dark ::-webkit-scrollbar-thumb { background-color: rgba(255,255,255,0.2); }
+        .dark ::-webkit-scrollbar-thumb:hover { background-color: rgba(255,255,255,0.4); }
+
+        .panel { display: none; }
+        .panel.active { display: block; animation: fadeIn 0.3s ease forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .setting-card {
+            background-color: rgba(255,255,255,0.5);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+            border: 1px solid rgba(0,0,0,0.05);
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+        .dark .setting-card {
+            background-color: rgba(50,50,50,0.5);
+            border-color: rgba(255,255,255,0.08);
+        }
+        .toggle-switch { width: 40px; height: 24px; background-color: #ccc; border-radius: 12px; position: relative; cursor: pointer; transition: background-color 0.2s ease; }
+        .dark .toggle-switch { background-color: #555; }
+        .toggle-switch.on { background-color: #34c759; }
+        .toggle-switch .handle { width: 20px; height: 20px; background-color: white; border-radius: 50%; position: absolute; top: 2px; left: 2px; transition: transform 0.2s ease; }
+        .toggle-switch.on .handle { transform: translateX(16px); }
+        
+        .subpanel-nav {
+            display: flex;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        .subpanel-nav .back-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            color: #007aff;
+            font-size: 16px;
+        }
+        .subpanel-nav h1 {
+            margin-left: 8px;
+        }
+        
+        .logo-color-scheme {
+            filter: invert(1);
+        }
+        .dark .logo-color-scheme {
+            filter: none;
+        }
+
+        /* 任务栏运行中应用指示器 */
+        .dock-icon.running::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 5px;
+            height: 5px;
+            background-color: #333;
+            border-radius: 50%;
+            transition: background-color 0.3s;
+        }
+        .dark .dock-icon.running::after {
+            background-color: #eee;
+        }
+        .dock-icon.active {
+            /* Can add a subtle glow or background change for the active window icon */
+        }
+
+
+        /* 深色模式文本和UI颜色 */
+        .dark, .dark body {
+            color: #d1d5db; /* gray-300 */
+        }
+        .dark .text-gray-800 { color: #d1d5db; }
+        .dark .text-gray-600 { color: #9ca3af; } /* gray-400 */
+        .dark .text-gray-500 { color: #a1a1aa; } /* zinc-400 */
+        .dark #start-button .material-symbols-outlined { color: #d1d5db; }
+        .dark input, .dark select {
+            background-color: rgba(70,70,70,0.5);
+            border-color: #555;
+            color: #d1d5db;
+        }
+        .dark .border-gray-200\/80 { border-color: rgba(255,255,255,0.1); }
+        .dark .hover\:bg-gray-200\/50:hover { background-color: rgba(255,255,255,0.08); }
+        .dark .bg-gray-200 { background-color: #444; }
+        .dark .hover\:bg-gray-300:hover { background-color: #555; }
+        .dark .bg-blue-50 { background-color: rgba(59, 130, 246, 0.2); }
+        .dark .border-blue-300 { border-color: rgba(59, 130, 246, 0.5); }
+        .dark input[type="range"]::-webkit-slider-thumb { background: #d1d5db; }
+        .dark input[type="range"]::-moz-range-thumb { background: #d1d5db; }
+
+        /* 粗体文本 */
+        .bold-text-enabled p, .bold-text-enabled span, .bold-text-enabled a, .bold-text-enabled div, .bold-text-enabled h1, .bold-text-enabled h2, .bold-text-enabled h3, .bold-text-enabled label, .bold-text-enabled button, .bold-text-enabled select, .bold-text-enabled option {
+            font-weight: 500 !important;
+        }
+        .bold-text-enabled .font-semibold { font-weight: 700 !important; }
+        .bold-text-enabled .font-bold { font-weight: 800 !important; }
+
+        /* 模态框 */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background-color: rgba(0,0,0,0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            pointer-events: none;
+        }
+        .modal-overlay.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .modal-content {
+            padding: 24px;
+            border-radius: 12px;
+            width: 400px;
+            transform: scale(0.95);
+            transition: transform 0.2s ease;
+        }
+        .modal-overlay.visible .modal-content {
+            transform: scale(1);
+        }
+
+        /* 浏览器样式 */
+        .browser-toolbar {
+            height: 52px;
+            display: flex;
+            align-items: center;
+            padding: 0 8px;
+            gap: 8px;
+            border-bottom: 1px solid rgba(0,0,0,0.08);
+        }
+        .dark .browser-toolbar {
+            border-bottom-color: rgba(255,255,255,0.08);
+        }
+        .browser-toolbar button {
+            background: none;
+            border: none;
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        .browser-toolbar button:hover {
+            background-color: rgba(0,0,0,0.05);
+        }
+        .dark .browser-toolbar button:hover {
+            background-color: rgba(255,255,255,0.05);
+        }
+        .address-bar {
+            flex-grow: 1;
+            height: 32px;
+            border-radius: 16px;
+            background-color: rgba(0,0,0,0.05);
+            border: 1px solid transparent;
+            padding: 0 16px;
+            font-size: 14px;
+        }
+        .dark .address-bar {
+            background-color: rgba(255,255,255,0.08);
+        }
+        .address-bar:focus {
+            outline: none;
+            border-color: #007aff;
+        }
+        .browser-content {
+            flex-grow: 1;
+            background-color: #fff;
+        }
+        .dark .browser-content {
+            background-color: #121212;
+        }
+        .browser-content iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        
+        /* Office 应用样式 */
+        .office-toolbar {
+            flex-shrink: 0;
+            padding: 8px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            border-bottom: 1px solid rgba(0,0,0,0.08);
+        }
+        .dark .office-toolbar {
+            border-bottom-color: rgba(255,255,255,0.08);
+        }
+        .office-toolbar .file-input-label, .office-toolbar .toolbar-btn {
+            background-color: rgba(0,0,0,0.05);
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            border: none;
+        }
+        .office-toolbar .file-input-label:hover, .office-toolbar .toolbar-btn:hover {
+            background-color: rgba(0,0,0,0.1);
+        }
+        .dark .office-toolbar .file-input-label, .dark .office-toolbar .toolbar-btn {
+             background-color: rgba(255,255,255,0.08);
+        }
+        .dark .office-toolbar .file-input-label:hover, .dark .office-toolbar .toolbar-btn:hover {
+            background-color: rgba(255,255,255,0.15);
+        }
+        .office-content-area {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 24px;
+            background-color: #fff;
+        }
+        .dark .office-content-area {
+            background-color: #2d2d2d;
+        }
+        .office-content-area:focus {
+            outline: none;
+        }
+        /* Excel table styles */
+        .excel-table {
+            border-collapse: collapse;
+            width: 100%;
+            font-size: 14px;
+        }
+        .excel-table th, .excel-table td {
+            border: 1px solid #ccc;
+            padding: 8px;
+            text-align: left;
+        }
+        .dark .excel-table th, .dark .excel-table td {
+            border-color: #555;
+        }
+        .excel-table th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+        .dark .excel-table th {
+            background-color: #333;
+        }
+
+        /* [修改] Gemini 应用样式美化 */
+        .gemini-chat-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            background: linear-gradient(to bottom, #ffffff, #f7f7f7);
+        }
+        .dark .gemini-chat-container {
+            background: linear-gradient(to bottom, #202124, #171717);
+        }
+        .gemini-messages-area {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .gemini-message {
+            display: flex;
+            gap: 12px;
+            max-width: 85%;
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        .gemini-message.user {
+            align-self: flex-end;
+            flex-direction: row-reverse;
+        }
+        .gemini-message .gemini-bubble {
+            padding: 12px 16px;
+            border-radius: 18px;
+            line-height: 1.6;
+            word-wrap: break-word;
+        }
+        .gemini-message.ai .gemini-bubble {
+            background-color: #f1f3f4;
+            border-top-left-radius: 4px;
+        }
+        .dark .gemini-message.ai .gemini-bubble {
+            background-color: #3c4043;
+        }
+        .gemini-message.user .gemini-bubble {
+            background-color: #d9e7ff;
+            border-top-right-radius: 4px;
+        }
+        .dark .gemini-message.user .gemini-bubble {
+            background-color: #8ab4f8;
+            color: #202124;
+        }
+        .gemini-bubble img.sent-image {
+            max-width: 100%;
+            border-radius: 8px;
+            margin-top: 8px;
+        }
+        .gemini-bubble.loading {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .gemini-bubble.loading .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #9aa0a6;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+        .gemini-bubble.loading .dot:nth-child(1) { animation-delay: -0.32s; }
+        .gemini-bubble.loading .dot:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1.0); }
+        }
+
+        .gemini-input-area {
+            border-top: 1px solid #e0e0e0;
+            padding: 12px 16px;
+            background-color: #fff;
+        }
+        .dark .gemini-input-area {
+            border-top-color: #3c4043;
+            background-color: #202124;
+        }
+        .gemini-textarea {
+            flex-grow: 1;
+            border: none;
+            outline: none;
+            resize: none;
+            background-color: transparent;
+            font-size: 16px;
+            max-height: 100px;
+            overflow-y: auto;
+            text-align: center; /* [修改] 文本居中 */
+        }
+        .gemini-textarea::placeholder {
+             text-align: center; /* [修改] Placeholder居中 */
+        }
+        .gemini-input-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            background: none;
+            border: none;
+            color: #5f6368;
+        }
+        .dark .gemini-input-btn {
+            color: #bdc1c6;
+        }
+        .gemini-input-btn:hover {
+            background-color: rgba(0,0,0,0.05);
+        }
+        .dark .gemini-input-btn:hover {
+            background-color: rgba(255,255,255,0.08);
+        }
+        #gemini-send-btn {
+            background-color: #1a73e8;
+            color: white;
+        }
+        .dark #gemini-send-btn {
+            background-color: #8ab4f8;
+            color: #202124;
+        }
+        .gemini-attachment-preview {
+            padding: 0 8px 8px;
+            position: relative;
+        }
+        .gemini-attachment-preview img {
+            max-height: 100px;
+            border-radius: 8px;
+        }
+        .gemini-attachment-preview .remove-attachment-btn {
+            position: absolute;
+            top: -4px;
+            right: 0;
+            background-color: rgba(0,0,0,0.6);
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+
+    </style>
+</head>
+<body class="bg-black text-gray-800">
+
+    <!-- 1. 开机界面 -->
+    <div id="boot-screen" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black transition-opacity duration-500">
+        <img src="https://ano.0m-p.space/DesignOS_Logo_White.svg" alt="DesignOS Logo" class="w-48 h-48 mb-8">
+        <div class="loader"></div>
+    </div>
+
+    <!-- 2. 桌面 -->
+    <div id="desktop" class="hidden h-screen w-screen bg-cover bg-center opacity-0 transition-opacity duration-1000">
+        
+        <!-- 设置窗口 -->
+        <div id="settings-window" class="window hidden glass-effect" data-app-id="settings" data-app-name="设置" data-app-icon="https://cdn.jim-nielsen.com/macos/1024/system-preferences-2021-06-03.png?rf=1024" style="top: 10%; left: 18%; z-index: 10;">
+            <div class="title-bar">
+                <div class="window-title">设置</div>
+                <div class="window-controls">
+                    <button class="minimize-btn" data-window="settings-window"><span class="material-symbols-outlined" style="font-size: 18px;">remove</span></button>
+                    <button class="maximize-btn" data-window="settings-window"><span class="material-symbols-outlined" style="font-size: 16px;">crop_square</span></button>
+                    <button class="close-btn" data-window="settings-window"><span class="material-symbols-outlined" style="font-size: 18px;">close</span></button>
+                </div>
+            </div>
+            <div class="window-body !flex-row">
+                <div class="sidebar">
+                    <a class="sidebar-item user-profile-item active" data-panel="account">
+                        <img id="sidebar-avatar" src="https://links.0m-p.space/dos_user.png" alt="User Avatar">
+                        <div class="user-info">
+                            <span id="sidebar-username" class="username">btm_m</span>
+                            <span id="sidebar-email" class="email">btm_m@design.os</span>
+                        </div>
+                    </a>
+                    <div class="p-2 flex-shrink-0">
+                        <input type="search" placeholder="查找设置" class="w-full bg-gray-500/20 placeholder-gray-600 text-sm rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 border-none">
+                    </div>
+                    <div class="sidebar-scroll-area mt-2 space-y-1 p-2">
+                        <a class="sidebar-item" data-panel="network"><span class="material-symbols-outlined">wifi</span><span>网络</span></a>
+                        <a class="sidebar-item" data-panel="devices"><span class="material-symbols-outlined">devices</span><span>连接和设备</span></a>
+                        <a class="sidebar-item" data-panel="personalization"><span class="material-symbols-outlined">palette</span><span>个性化</span></a>
+                        <a class="sidebar-item" data-panel="apps"><span class="material-symbols-outlined">apps</span><span>应用</span></a>
+                        <a class="sidebar-item" data-panel="display"><span class="material-symbols-outlined">brightness_6</span><span>显示与亮度</span></a>
+                        <a class="sidebar-item" data-panel="sound"><span class="material-symbols-outlined">volume_up</span><span>声音</span></a>
+                        <a class="sidebar-item" data-panel="time"><span class="material-symbols-outlined">schedule</span><span>时间</span></a>
+                        <a class="sidebar-item" data-panel="language"><span class="material-symbols-outlined">keyboard</span><span>键盘和语言</span></a>
+                        <a class="sidebar-item" data-panel="assistant"><span class="material-symbols-outlined">smart_toy</span><span>智能助手</span></a>
+                        <a class="sidebar-item" data-panel="notifications"><span class="material-symbols-outlined">notifications</span><span>通知</span></a>
+                        <a class="sidebar-item" data-panel="privacy"><span class="material-symbols-outlined">lock</span><span>隐私与密码</span></a>
+                        <a class="sidebar-item" data-panel="system"><span class="material-symbols-outlined">info</span><span>关于本机</span></a>
+                        <a class="sidebar-item" data-panel="update"><span class="material-symbols-outlined">system_update</span><span>系统更新</span></a>
+                    </div>
+                </div>
+                <div class="content-area">
+                    <div id="panel-account" class="panel active">
+                        <h1 class="text-3xl font-bold mb-6">账户</h1>
+                        <div class="setting-card">
+                            <div class="flex items-center gap-6">
+                                <div class="flex flex-col items-center gap-2">
+                                    <img id="account-panel-avatar" src="https://links.0m-p.space/dos_user.png" alt="User Avatar" class="w-24 h-24 rounded-full">
+                                    <input id="avatar-input" type="text" placeholder="粘贴头像URL" class="w-24 text-xs text-center bg-transparent border-0 border-b border-gray-400 focus:ring-0 focus:border-blue-500">
+                                </div>
+                                <div class="flex-grow">
+                                    <div class="mb-2">
+                                        <label class="block text-sm font-medium text-gray-500">用户名</label>
+                                        <input id="username-input" type="text" value="btm_m" class="mt-1 block w-full bg-transparent text-lg font-semibold border-0 border-b-2 border-gray-300 focus:ring-0 focus:border-blue-500">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-500">邮箱</label>
+                                        <input id="email-input" type="email" value="btm_m@design.os" class="mt-1 block w-full bg-transparent text-lg border-0 border-b-2 border-gray-300 focus:ring-0 focus:border-blue-500">
+                                    </div>
+                                </div>
+                                <button id="save-account-btn" class="self-start bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors disabled:bg-gray-400">保存</button>
+                            </div>
+                        </div>
+                        <div class="setting-card">
+                            <h2 class="text-xl font-semibold mb-4">我的设备</h2>
+                            <div class="space-y-4">
+                                <div class="flex items-center gap-4 p-2 rounded-lg hover:bg-gray-200/50">
+                                    <span class="material-symbols-outlined text-blue-600" style="font-size: 36px;">laptop_chromebook</span>
+                                    <div class="flex-grow">
+                                        <p class="font-semibold">btm_m的DesignBook (此设备)</p>
+                                        <p class="text-sm text-gray-600">DesignBook Q16 2025 (DBQ1625G)</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-4 p-2 rounded-lg hover:bg-gray-200/50">
+                                    <span class="material-symbols-outlined" style="font-size: 36px;">smartphone</span>
+                                    <div class="flex-grow">
+                                        <p class="font-semibold">btm_m的DesignPhone</p>
+                                        <p class="text-sm text-gray-600">DesignPhone G2 Ultra (DPG2UG)</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-4 p-2 rounded-lg hover:bg-gray-200/50">
+                                    <span class="material-symbols-outlined" style="font-size: 36px;">tablet_mac</span>
+                                    <div class="flex-grow">
+                                        <p class="font-semibold">btm_m的DesignPad</p>
+                                        <p class="text-sm text-gray-600">DesignPad 14 2025 Ultra (DPA1425ULG)</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="setting-card">
+                            <h2 class="text-xl font-semibold mb-4">订阅服务</h2>
+                            <p class="text-gray-600">您没有激活的订阅。</p>
+                        </div>
+                    </div>
+                    <div id="panel-network" class="panel">
+                        <h1 class="text-3xl font-bold mb-6">网络</h1>
+                        <div class="flex items-center justify-between setting-card">
+                            <div class="flex items-center gap-4"><span class="material-symbols-outlined text-blue-600" style="font-size: 28px;">wifi</span><div><p class="font-semibold">WLAN</p><p class="text-sm text-gray-600">管理可用的网络</p></div></div>
+                            <div class="toggle-switch on" id="wifi-toggle"> <div class="handle"></div> </div>
+                        </div>
+                        <div class="setting-card">
+                            <div class="flex items-start justify-between"><div><p class="font-semibold text-lg">DesignOS_5G</p><p class="text-sm text-green-600">已连接，安全</p></div><button class="text-sm bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-md" data-subpanel-target="network-properties">属性</button></div>
+                            <div class="mt-4 pt-4 border-t border-gray-200/80"><h3 class="font-semibold mb-2">可用网络</h3><div class="space-y-2"><div class="flex items-center justify-between p-2 rounded-md hover:bg-gray-200/50"><div class="flex items-center gap-3"><span class="material-symbols-outlined">wifi</span><span>TP-LINK_Office</span></div><button class="text-sm font-semibold text-blue-600">连接</button></div><div class="flex items-center justify-between p-2 rounded-md hover:bg-gray-200/50"><div class="flex items-center gap-3"><span class="material-symbols-outlined">wifi_2_bar</span><span>CMCC-China</span></div><button class="text-sm font-semibold text-blue-600">连接</button></div></div></div>
+                        </div>
+                         <a class="flex items-center justify-between setting-card cursor-pointer hover:bg-gray-200/50" data-subpanel-target="ethernet"><div class="flex items-center gap-4"><span class="material-symbols-outlined" style="font-size: 28px;">settings_ethernet</span><p class="font-semibold">以太网</p></div><span class="material-symbols-outlined text-gray-400">arrow_forward_ios</span></a>
+                        <a class="flex items-center justify-between setting-card cursor-pointer hover:bg-gray-200/50" data-subpanel-target="vpn"><div class="flex items-center gap-4"><span class="material-symbols-outlined" style="font-size: 28px;">vpn_key</span><p class="font-semibold">VPN</p></div><span class="material-symbols-outlined text-gray-400">arrow_forward_ios</span></a>
+                        <a class="flex items-center justify-between setting-card cursor-pointer hover:bg-gray-200/50" data-subpanel-target="hotspot"><div class="flex items-center gap-4"><span class="material-symbols-outlined" style="font-size: 28px;">wifi_tethering</span><p class="font-semibold">移动热点</p></div><span class="material-symbols-outlined text-gray-400">arrow_forward_ios</span></a>
+                         <div class="flex items-center justify-between setting-card"><div class="flex items-center gap-4"><span class="material-symbols-outlined" style="font-size: 28px;">airplanemode_active</span><p class="font-semibold">飞行模式</p></div><div class="toggle-switch"> <div class="handle"></div> </div></div>
+                    </div>
+                    <div id="panel-network-properties" class="panel"><div class="subpanel-nav"><button class="back-btn" data-subpanel-back="network"><span class="material-symbols-outlined">arrow_back_ios</span></button><h1 class="text-3xl font-bold">WLAN 属性</h1></div><div class="setting-card grid grid-cols-2 gap-x-8 gap-y-4 text-sm"><div><p class="text-gray-500">SSID:</p><p class="font-semibold">DesignOS_5G</p></div><div><p class="text-gray-500">协议:</p><p class="font-semibold">Wi-Fi 6 (802.11ax)</p></div><div><p class="text-gray-500">安全类型:</p><p class="font-semibold">WPA2-个人</p></div><div><p class="text-gray-500">网络频带:</p><p class="font-semibold">5 GHz</p></div><div><p class="text-gray-500">网络通道:</p><p class="font-semibold">149</p></div><div><p class="text-gray-500">链接速度 (接收/传输):</p><p class="font-semibold">1201/1201 (Mbps)</p></div><div class="col-span-2"><p class="text-gray-500">IPv6 地址:</p><p class="font-semibold">fe80::abc:1234:5678:90de%1</p></div><div class="col-span-2"><p class="text-gray-500">IPv4 地址:</p><p class="font-semibold">192.168.1.101</p></div><div><p class="text-gray-500">IPv4 DNS 服务器:</p><p class="font-semibold">192.168.1.1</p></div><div><p class="text-gray-500">制造商:</p><p class="font-semibold">Intel Corporation</p></div><div class="col-span-2"><p class="text-gray-500">描述:</p><p class="font-semibold">Intel(R) Wi-Fi 6 AX201 160MHz</p></div><div><p class="text-gray-500">驱动程序版本:</p><p class="font-semibold">22.40.0.7</p></div><div><p class="text-gray-500">物理地址 (MAC):</p><p class="font-semibold">AB-CD-EF-12-34-56</p></div></div></div>
+                    <div id="panel-ethernet" class="panel"><div class="subpanel-nav"><button class="back-btn" data-subpanel-back="network"><span class="material-symbols-outlined">arrow_back_ios</span></button><h1 class="text-3xl font-bold">以太网</h1></div><p>未连接</p></div>
+                    <div id="panel-vpn" class="panel"><div class="subpanel-nav"><button class="back-btn" data-subpanel-back="network"><span class="material-symbols-outlined">arrow_back_ios</span></button><h1 class="text-3xl font-bold">VPN</h1></div><button class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">添加 VPN 连接</button></div>
+                    <div id="panel-hotspot" class="panel"><div class="subpanel-nav"><button class="back-btn" data-subpanel-back="network"><span class="material-symbols-outlined">arrow_back_ios</span></button><h1 class="text-3xl font-bold">移动热点</h1></div><p>功能待开发</p></div>
+                    
+                    <div id="panel-devices" class="panel">
+                        <h1 class="text-3xl font-bold mb-6">连接和设备</h1>
+                        <div class="setting-card">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-4"><span class="material-symbols-outlined text-blue-600" style="font-size: 28px;">bluetooth</span><div><p class="font-semibold">蓝牙</p><p class="text-sm text-gray-600">已开启</p></div></div>
+                                <div class="flex items-center gap-4">
+                                    <button class="text-sm bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-md">添加设备</button>
+                                    <div class="toggle-switch on"> <div class="handle"></div> </div>
+                                </div>
+                            </div>
+                            <div class="mt-4 pt-4 border-t border-gray-200/80 space-y-3">
+                                <div class="flex items-center justify-between p-2 rounded-lg">
+                                    <div class="flex items-center gap-3"><span class="material-symbols-outlined">mouse</span><div><p class="font-semibold">Design Mouse Pro</p><p class="text-sm text-green-600">已连接</p></div></div>
+                                    <button class="text-sm font-semibold text-red-500">断开</button>
+                                </div>
+                                <div class="flex items-center justify-between p-2 rounded-lg hover:bg-gray-200/50">
+                                    <div class="flex items-center gap-3"><span class="material-symbols-outlined">keyboard</span><div><p class="font-semibold">Design Keyboard</p><p class="text-sm text-gray-500">已配对</p></div></div>
+                                    <button class="text-sm font-semibold text-blue-600">连接</button>
+                                </div>
+                                <div class="flex items-center justify-between p-2 rounded-lg hover:bg-gray-200/50">
+                                    <div class="flex items-center gap-3"><span class="material-symbols-outlined">headphones</span><div><p class="font-semibold">Design Buds Pro</p><p class="text-sm text-gray-500">已配对</p></div></div>
+                                    <button class="text-sm font-semibold text-blue-600">连接</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="setting-card">
+                             <h2 class="text-xl font-semibold mb-4">Design 生态设备</h2>
+                             <div class="flex items-center gap-4 p-2 rounded-lg">
+                                <span class="material-symbols-outlined" style="font-size: 36px;">smartphone</span>
+                                <div class="flex-grow"><p class="font-semibold">btm_m的DesignPhone</p><p class="text-sm text-gray-600">已连接到此DesignBook</p></div>
+                            </div>
+                        </div>
+                        <div class="setting-card">
+                             <h2 class="text-xl font-semibold mb-4">USB 设备</h2>
+                             <div class="flex items-center gap-4 p-2 rounded-lg">
+                                <span class="material-symbols-outlined" style="font-size: 36px;">usb</span>
+                                <div class="flex-grow"><p class="font-semibold">External Drive</p><p class="text-sm text-gray-600">已连接</p></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="panel-personalization" class="panel"><h1 class="text-3xl font-bold">个性化</h1></div>
+                    <div id="panel-apps" class="panel"><h1 class="text-3xl font-bold">应用</h1></div>
+                    <div id="panel-display" class="panel">
+                        <h1 class="text-3xl font-bold mb-6">显示与亮度</h1>
+                        <div class="setting-card">
+                            <h2 class="text-xl font-semibold mb-4">外观</h2>
+                            <div class="flex justify-around">
+                                <div class="text-center cursor-pointer" id="light-mode-btn">
+                                    <div class="w-32 h-20 bg-white rounded-lg border-2 border-blue-500 shadow-lg"></div>
+                                    <p class="mt-2 text-sm font-semibold">浅色</p>
+                                </div>
+                                <div class="text-center cursor-pointer" id="dark-mode-btn">
+                                    <div class="w-32 h-20 bg-gray-800 rounded-lg border-2 border-transparent"></div>
+                                    <p class="mt-2 text-sm">深色</p>
+                                </div>
+                                <div class="text-center cursor-pointer" id="auto-mode-btn">
+                                    <div class="w-32 h-20 bg-gradient-to-br from-white to-gray-800 rounded-lg border-2 border-transparent"></div>
+                                    <p class="mt-2 text-sm">自动</p>
+                                </div>
+                            </div>
+                            <div id="auto-mode-options" class="hidden mt-4 pt-4 border-t border-gray-200/80">
+                                <div class="flex items-center justify-between">
+                                    <p class="font-semibold">自动切换模式</p>
+                                    <select class="rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50">
+                                        <option>从日落到日出</option>
+                                        <option>自定义时间</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="setting-card">
+                            <h2 class="text-xl font-semibold mb-2">亮度</h2>
+                            <div class="flex items-center gap-4">
+                                <span class="material-symbols-outlined">brightness_medium</span>
+                                <input type="range" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                            </div>
+                        </div>
+                        <div class="setting-card">
+                            <h2 class="text-xl font-semibold mb-2">文字与显示大小</h2>
+                            <div class="space-y-4">
+                                <div><label class="text-sm">文字大小</label><input type="range" min="80" max="120" value="100" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"></div>
+                                <div><label class="text-sm">显示大小</label><input type="range" min="90" max="110" value="100" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"></div>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between setting-card">
+                            <p class="font-semibold">粗体文本</p>
+                            <div class="toggle-switch" id="bold-text-toggle"> <div class="handle"></div> </div>
+                        </div>
+                        <div class="flex items-center justify-between setting-card">
+                            <div><p class="font-semibold">RealColor+</p><p class="text-sm text-gray-500">增强色彩与对比度</p></div>
+                            <div class="toggle-switch on"> <div class="handle"></div> </div>
+                        </div>
+                        <div class="flex items-center justify-between setting-card">
+                            <p class="font-semibold">自动锁定</p>
+                            <select class="rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50">
+                                <option>30 秒</option>
+                                <option selected>1 分钟</option>
+                                <option>5 分钟</option>
+                                <option>从不</option>
+                            </select>
+                        </div>
+                         <div class="flex items-center justify-between setting-card">
+                            <div><p class="font-semibold">Always On Display</p><p class="text-sm text-gray-500">在锁屏界面显示时间和通知</p></div>
+                            <div class="toggle-switch"> <div class="handle"></div> </div>
+                        </div>
+                    </div>
+                    <div id="panel-sound" class="panel"><h1 class="text-3xl font-bold">声音</h1></div>
+                    <div id="panel-time" class="panel"><h1 class="text-3xl font-bold">时间</h1></div>
+                    <div id="panel-language" class="panel"><h1 class="text-3xl font-bold">键盘和语言</h1></div>
+                    <div id="panel-assistant" class="panel"><h1 class="text-3xl font-bold">智能助手</h1></div>
+                    <div id="panel-notifications" class="panel"><h1 class="text-3xl font-bold">通知</h1></div>
+                    <div id="panel-privacy" class="panel"><h1 class="text-3xl font-bold">隐私与密码</h1></div>
+                    <div id="panel-system" class="panel">
+                        <div class="flex items-center justify-between mb-6">
+                            <h1 class="text-3xl font-bold">关于本机</h1>
+                            <div class="text-right text-xs text-gray-500">
+                                <p>DesignBook Q16 2025</p>
+                                <p>Design K1 Ultra, 32.0 GB RAM, DesignOS 2.1</p>
+                            </div>
+                        </div>
+                        <div class="setting-card text-center">
+                            <img src="https://ano.0m-p.space/DesignOS_Logo_White.svg" class="w-32 h-32 p-2 rounded-lg mx-auto mb-2 logo-color-scheme">
+                            <p class="text-gray-600">2.1 Public Beta</p>
+                        </div>
+                        <div class="setting-card">
+                            <div class="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
+                                <div class="col-span-2 flex items-center justify-between">
+                                    <div>
+                                        <p class="font-semibold text-gray-500">设备名称</p>
+                                        <p id="device-name-text" class="text-base cursor-pointer hover:text-blue-500">btm_m的DesignBook</p>
+                                    </div>
+                                    <button id="edit-device-name-btn" class="text-sm bg-gray-200 hover:bg-gray-300 px-3 py-1 rounded-md">重命名</button>
+                                </div>
+                                <div><p class="font-semibold text-gray-500">型号</p><p>DesignBook Q16 2025</p></div>
+                                <div><p class="font-semibold text-gray-500">型号代码</p><p>DBQ1625G</p></div>
+                                <div><p class="font-semibold text-gray-500">序列号</p><p>DBP0HHHKPV</p></div>
+                                <div class="col-span-2"><p class="font-semibold text-gray-500">处理器</p><p>Design K1 Ultra (ARM64)</p></div>
+                                <div><p class="font-semibold text-gray-500">统一内存</p><p>32.0 GB (31.3 GB 可用)</p></div>
+                                <div class="col-span-2"><p class="font-semibold text-gray-500">系统类型</p><p>ARM 64位操作系统, 基于Design Core Center与Intel(R) 共同设计的ARM的处理器</p></div>
+                                <div><p class="font-semibold text-gray-500">DesignOS 版本</p><p>2.1</p></div>
+                                <div><p class="font-semibold text-gray-500">内部版本号</p><p>2PB.2025.7.6</p></div>
+                            </div>
+                        </div>
+                        <div class="setting-card">
+                            <a class="flex items-center justify-between cursor-pointer" data-subpanel-target="warranty-details">
+                                <div>
+                                    <h2 class="text-xl font-semibold">保障信息</h2>
+                                    <p class="text-sm text-gray-500">查看保修状态和保障范围</p>
+                                </div>
+                                <span class="material-symbols-outlined text-gray-400">arrow_forward_ios</span>
+                            </a>
+                        </div>
+                    </div>
+                    <div id="panel-update" class="panel">
+                        <h1 class="text-3xl font-bold mb-6">系统更新</h1>
+                         <div class="setting-card">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="font-semibold text-green-600">DesignOS 已是最新版本</p>
+                                    <p class="text-sm text-gray-500">上次检查: 今天 20:24</p>
+                                </div>
+                                <button class="text-sm bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-md">检查更新</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="panel-warranty-details" class="panel">
+                        <div class="subpanel-nav">
+                            <button class="back-btn" data-subpanel-back="system"><span class="material-symbols-outlined">arrow_back_ios</span></button>
+                            <h1 class="text-3xl font-bold">保障信息</h1>
+                        </div>
+                        <div class="setting-card">
+                            <h2 class="text-xl font-semibold mb-4">您的设备</h2>
+                            <div class="space-y-3 text-sm">
+                                <div class="p-3 rounded-lg border border-blue-300 bg-blue-50">
+                                    <p class="font-semibold">DesignBook Q16 2025 (此设备)</p>
+                                    <p class="text-gray-600 mt-1">有限保修: 至 2027年7月11日</p>
+                                    <p class="text-gray-600">DesignCare+: 至 2026年7月11日</p>
+                                </div>
+                                 <div class="p-3 rounded-lg border">
+                                    <p class="font-semibold">btm_m的DesignPhone</p>
+                                    <p class="text-gray-600 mt-1">有限保修: 已过期</p>
+                                </div>
+                                <div class="p-3 rounded-lg border">
+                                    <p class="font-semibold">btm_m的DesignPad</p>
+                                    <p class="text-gray-600 mt-1">有限保修: 至 2026年1月20日</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 浏览器窗口 -->
+        <div id="browser-window" class="window hidden glass-effect" data-app-id="safari" data-app-name="Safari" data-app-icon="https://cdn.jim-nielsen.com/macos/1024/safari-2021-06-02.png?rf=1024" style="top: 12%; left: 22%; z-index: 10;">
+             <div class="title-bar">
+                <div class="window-title">Safari</div>
+                <div class="window-controls">
+                    <button class="minimize-btn" data-window="browser-window"><span class="material-symbols-outlined" style="font-size: 18px;">remove</span></button>
+                    <button class="maximize-btn" data-window="browser-window"><span class="material-symbols-outlined" style="font-size: 16px;">crop_square</span></button>
+                    <button class="close-btn" data-window="browser-window"><span class="material-symbols-outlined" style="font-size: 18px;">close</span></button>
+                </div>
+            </div>
+            <div class="window-body">
+                <div class="browser-toolbar">
+                    <button id="browser-back"><span class="material-symbols-outlined">arrow_back</span></button>
+                    <button id="browser-forward"><span class="material-symbols-outlined">arrow_forward</span></button>
+                    <button id="browser-refresh"><span class="material-symbols-outlined">refresh</span></button>
+                    <input id="browser-url" type="text" class="address-bar" placeholder="搜索或输入网址">
+                </div>
+                <div class="browser-content">
+                    <iframe id="browser-iframe" srcdoc="<h1 style='font-family: sans-serif; text-align: center; margin-top: 50px;'>欢迎使用 DesignOS Safari</h1>"></iframe>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Word 窗口 -->
+        <div id="word-window" class="window hidden glass-effect" data-app-id="word" data-app-name="Word" data-app-icon="https://cdn.jim-nielsen.com/macos/128/microsoft-word-2022-08-02.png?rf=1024" style="top: 15%; left: 25%; z-index: 10;">
+            <div class="title-bar">
+                <div class="window-title">Word</div>
+                <div class="window-controls">
+                    <button class="minimize-btn" data-window="word-window"><span class="material-symbols-outlined" style="font-size: 18px;">remove</span></button>
+                    <button class="maximize-btn" data-window="word-window"><span class="material-symbols-outlined" style="font-size: 16px;">crop_square</span></button>
+                    <button class="close-btn" data-window="word-window"><span class="material-symbols-outlined" style="font-size: 18px;">close</span></button>
+                </div>
+            </div>
+            <div class="window-body">
+                <div class="office-toolbar">
+                    <label class="file-input-label">
+                        <span class="material-symbols-outlined" style="font-size: 18px;">folder_open</span>
+                        打开
+                        <input type="file" id="word-file-input" class="hidden" accept=".docx">
+                    </label>
+                    <button id="word-save-btn" class="toolbar-btn">
+                        <span class="material-symbols-outlined" style="font-size: 18px;">save</span>
+                        保存
+                    </button>
+                    <div class="h-6 w-px bg-gray-500/30 mx-2"></div>
+                    <button id="word-bold-btn" class="toolbar-btn !p-2">
+                        <span class="material-symbols-outlined" style="font-size: 20px;">format_bold</span>
+                    </button>
+                    <button id="word-italic-btn" class="toolbar-btn !p-2">
+                        <span class="material-symbols-outlined" style="font-size: 20px;">format_italic</span>
+                    </button>
+                    <button id="word-underline-btn" class="toolbar-btn !p-2">
+                        <span class="material-symbols-outlined" style="font-size: 20px;">format_underlined</span>
+                    </button>
+                </div>
+                <div id="word-content" class="office-content-area" contenteditable="true">
+                     <p class="text-gray-500">请点击“打开”来预览和编辑一个 .docx 文档。</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- PowerPoint 窗口 -->
+        <div id="powerpoint-window" class="window hidden glass-effect" data-app-id="powerpoint" data-app-name="PowerPoint" data-app-icon="https://cdn.jim-nielsen.com/macos/128/microsoft-powerpoint-2022-08-02.png?rf=1024" style="top: 18%; left: 28%; z-index: 10;">
+            <div class="title-bar">
+                <div class="window-title">PowerPoint</div>
+                <div class="window-controls">
+                    <button class="minimize-btn" data-window="powerpoint-window"><span class="material-symbols-outlined" style="font-size: 18px;">remove</span></button>
+                    <button class="maximize-btn" data-window="powerpoint-window"><span class="material-symbols-outlined" style="font-size: 16px;">crop_square</span></button>
+                    <button class="close-btn" data-window="powerpoint-window"><span class="material-symbols-outlined" style="font-size: 18px;">close</span></button>
+                </div>
+            </div>
+            <div class="window-body">
+                <div class="office-toolbar">
+                    <label class="file-input-label">
+                        <span class="material-symbols-outlined" style="font-size: 18px;">folder_open</span>
+                        打开
+                        <input type="file" id="pptx-file-input" class="hidden" accept=".pptx">
+                    </label>
+                </div>
+                <div id="powerpoint-content" class="office-content-area flex items-center justify-center">
+                    <p class="text-gray-500">PowerPoint 预览功能正在开发中。请先打开一个 .pptx 文件。</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Excel 窗口 -->
+        <div id="excel-window" class="window hidden glass-effect" data-app-id="excel" data-app-name="Excel" data-app-icon="https://cdn.jim-nielsen.com/macos/128/microsoft-excel-2022-08-02.png?rf=1024" style="top: 21%; left: 31%; z-index: 10;">
+            <div class="title-bar">
+                <div class="window-title">Excel</div>
+                <div class="window-controls">
+                    <button class="minimize-btn" data-window="excel-window"><span class="material-symbols-outlined" style="font-size: 18px;">remove</span></button>
+                    <button class="maximize-btn" data-window="excel-window"><span class="material-symbols-outlined" style="font-size: 16px;">crop_square</span></button>
+                    <button class="close-btn" data-window="excel-window"><span class="material-symbols-outlined" style="font-size: 18px;">close</span></button>
+                </div>
+            </div>
+            <div class="window-body">
+                <div class="office-toolbar">
+                    <label class="file-input-label">
+                         <span class="material-symbols-outlined" style="font-size: 18px;">folder_open</span>
+                        打开
+                        <input type="file" id="excel-file-input" class="hidden" accept=".xlsx">
+                    </label>
+                </div>
+                <div id="excel-content" class="office-content-area">
+                    <p class="text-gray-500">请点击“打开”来预览一个 .xlsx 表格。</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- [修改] Gemini 窗口 -->
+        <div id="gemini-window" class="window hidden glass-effect" data-app-id="gemini" data-app-name="Gemini" data-app-icon="https://cdn.jim-nielsen.com/macos/1024/note-widget-notes-app-2024-04-24.png?rf=1024" style="top: 15%; left: 15%; width: 700px; height: 750px; z-index: 10;">
+            <div class="title-bar">
+                <div class="window-title">Gemini</div>
+                <div class="window-controls">
+                    <button class="minimize-btn" data-window="gemini-window"><span class="material-symbols-outlined" style="font-size: 18px;">remove</span></button>
+                    <button class="maximize-btn" data-window="gemini-window"><span class="material-symbols-outlined" style="font-size: 16px;">crop_square</span></button>
+                    <button class="close-btn" data-window="gemini-window"><span class="material-symbols-outlined" style="font-size: 18px;">close</span></button>
+                </div>
+            </div>
+            <div class="window-body !p-0">
+                <div class="gemini-chat-container">
+                    <div id="gemini-messages" class="gemini-messages-area">
+                        <!-- Welcome Message -->
+                        <div class="gemini-message ai">
+                            <div class="gemini-bubble">
+                                <p class="font-semibold mb-2">你好，我是 Gemini</p>
+                                <p>我能为你做些什么？</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="gemini-input-area">
+                        <div id="gemini-attachment-preview" class="gemini-attachment-preview hidden"></div>
+                        <div class="flex items-center gap-2 p-2">
+                            <label for="gemini-file-input" class="gemini-input-btn">
+                                <span class="material-symbols-outlined">attachment</span>
+                            </label>
+                            <input type="file" id="gemini-file-input" class="hidden" accept="image/*">
+                            <textarea id="gemini-text-input" placeholder="在这里输入..." rows="1" class="gemini-textarea"></textarea>
+                            <button id="gemini-send-btn" class="gemini-input-btn">
+                                <span class="material-symbols-outlined">send</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 应用抽屉 -->
+        <div id="app-drawer" class="hidden absolute bottom-[88px] left-1/2 -translate-x-1/2 w-[90vw] max-w-2xl p-6 rounded-3xl glass-effect shadow-2xl">
+            <h2 class="text-xl font-bold mb-4">所有应用</h2>
+            <div id="app-grid" class="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-4"></div>
+        </div>
+
+        <!-- 任务栏 -->
+        <div id="taskbar-container" class="absolute bottom-2 left-1/2 -translate-x-1/2">
+            <div class="h-16 rounded-2xl glass-effect inline-flex items-center justify-center px-4 shadow-lg">
+                <div class="flex items-center justify-center space-x-2">
+                    <button id="start-button" class="p-2 rounded-full dock-icon"><span class="material-symbols-outlined text-3xl text-gray-800">deployed_code_update</span></button>
+                    <div class="h-8 w-px bg-gray-500/50"></div>
+                    <div id="pinned-apps" class="flex items-center space-x-2"></div>
+                    <div id="running-apps" class="flex items-center space-x-2"></div>
+                    <div class="h-8 w-px bg-gray-500/50 ml-2"></div>
+                    <div id="time-date" class="text-center text-sm font-medium ml-2">
+                        <div id="time"></div> <div id="date"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 设备重命名模态框 -->
+        <div id="rename-device-modal" class="modal-overlay">
+            <div class="modal-content glass-effect">
+                <h2 class="text-lg font-semibold mb-4">重命名设备</h2>
+                <input id="rename-device-input" type="text" class="w-full bg-gray-500/20 placeholder-gray-600 text-sm rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 border-none">
+                <div class="flex justify-end gap-2 mt-4">
+                    <button id="cancel-rename-btn" class="text-sm bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-md">取消</button>
+                    <button id="save-rename-btn" class="text-sm bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">保存</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    
+    <!-- [修改] 将脚本移至body末尾以确保DOM加载完毕 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.0/FileSaver.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html-docx-js-typescript@1.8.0/dist/browser/html-docx-js.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/2.3.1/purify.min.js"></script>
+
+    <script>
+        // --- 数据定义 ---
+        const apps = [
+            { id: 'settings', name: '设置', icon: 'https://cdn.jim-nielsen.com/macos/1024/system-preferences-2021-06-03.png?rf=1024', pinned: false },
+            { id: 'mail', name: '邮件', icon: 'https://cdn.jim-nielsen.com/macos/1024/mail-2021-05-25.png?rf=1024', pinned: false },
+            { id: 'messages', name: '信息', icon: 'https://cdn.jim-nielsen.com/macos/1024/messages-2021-05-25.png?rf=1024', pinned: false },
+            { id: 'safari', name: 'Safari', icon: 'https://cdn.jim-nielsen.com/macos/1024/safari-2021-06-02.png?rf=1024', pinned: true },
+            { id: 'powerpoint', name: 'PowerPoint', icon: 'https://cdn.jim-nielsen.com/macos/128/microsoft-powerpoint-2022-08-02.png?rf=1024', pinned: true },
+            { id: 'word', name: 'Word', icon: 'https://cdn.jim-nielsen.com/macos/128/microsoft-word-2022-08-02.png?rf=1024', pinned: true },
+            { id: 'excel', name: 'Excel', icon: 'https://cdn.jim-nielsen.com/macos/128/microsoft-excel-2022-08-02.png?rf=1024', pinned: false },
+            { id: 'gemini', name: 'Gemini', icon: 'https://cdn.jim-nielsen.com/macos/1024/note-widget-notes-app-2024-04-24.png?rf=1024', pinned: true },
+        ];
+        const wallpaperUrl = 'https://www.iclarified.com/images/news/97556/465566/465566.jpg';
+
+        // --- DOM 元素获取 ---
+        const desktop = document.getElementById('desktop');
+        const appDrawer = document.getElementById('app-drawer');
+        const appGrid = document.getElementById('app-grid');
+        const pinnedAppsContainer = document.getElementById('pinned-apps');
+        const runningAppsContainer = document.getElementById('running-apps');
+        
+        // --- 全局变量 ---
+        let highestZIndex = 10;
+        let geminiAttachmentUrl = null;
+        const GEMINI_API_KEY = "AIzaSyAfCZm1g0zibKZF_6Xc5_mGdgTH8p-4YAA";
+
+        // --- 窗口管理 ---
+        const windowManager = {
+            open: (appId, appName, appIcon) => {
+                const win = document.querySelector(`.window[data-app-id="${appId}"]`);
+                if (!win) return;
+                
+                win.classList.remove('hidden', 'minimizing');
+                windowManager.focus(win.id);
+                taskbarManager.addOrFocus(appId, appName, appIcon);
+            },
+            close: (windowId) => {
+                const win = document.getElementById(windowId);
+                if (win) {
+                    win.classList.add('hidden');
+                    taskbarManager.remove(win.dataset.appId);
+                    windowManager.checkMaximizedState();
+                }
+            },
+            focus: (windowId) => {
+                const win = document.getElementById(windowId);
+                if (!win) return;
+                highestZIndex++;
+                win.style.zIndex = highestZIndex;
+                win.classList.remove('minimizing');
+                taskbarManager.setActive(win.dataset.appId);
+            },
+            minimize: (windowId) => {
+                const win = document.getElementById(windowId);
+                if (win) {
+                    win.classList.add('minimizing');
+                    win.addEventListener('transitionend', () => {
+                        win.classList.add('hidden');
+                    }, { once: true });
+                    taskbarManager.setInactive(win.dataset.appId);
+                }
+            },
+            maximize: (windowId) => {
+                const win = document.getElementById(windowId);
+                if (!win) return;
+                win.classList.toggle('maximized');
+                windowManager.checkMaximizedState();
+            },
+            checkMaximizedState: () => {
+                const isAnyWindowMaximized = !!document.querySelector('.window.maximized:not(.hidden)');
+                if (isAnyWindowMaximized) {
+                    desktop.classList.add('taskbar-hidden');
+                } else {
+                    desktop.classList.remove('taskbar-hidden');
+                }
+            }
+        };
+
+        // --- 任务栏管理 ---
+        const taskbarManager = {
+            addOrFocus: (appId, appName, appIcon) => {
+                let iconEl = document.querySelector(`.dock-icon[data-app-id="${appId}"]`);
+                if (!iconEl) { // App is not pinned
+                    iconEl = document.createElement('button');
+                    iconEl.className = 'p-2 rounded-xl dock-icon';
+                    iconEl.dataset.appId = appId;
+                    iconEl.dataset.pinned = 'false';
+                    iconEl.innerHTML = `<img src="${appIcon}" alt="${appName}" class="w-8 h-8">`;
+                    iconEl.addEventListener('click', () => windowManager.focus(document.querySelector(`.window[data-app-id="${appId}"]`).id));
+                    runningAppsContainer.appendChild(iconEl);
+                }
+                iconEl.classList.add('running');
+                taskbarManager.setActive(appId);
+            },
+            remove: (appId) => {
+                const iconEl = document.querySelector(`.dock-icon[data-app-id="${appId}"]`);
+                if (iconEl) {
+                    iconEl.classList.remove('running', 'active');
+                    if (iconEl.dataset.pinned === 'false') {
+                        iconEl.remove();
+                    }
+                }
+            },
+            setActive: (appId) => {
+                document.querySelectorAll('.dock-icon').forEach(el => el.classList.remove('active'));
+                const iconEl = document.querySelector(`.dock-icon[data-app-id="${appId}"]`);
+                if(iconEl) iconEl.classList.add('active');
+            },
+            setInactive: (appId) => {
+                const iconEl = document.querySelector(`.dock-icon[data-app-id="${appId}"]`);
+                if(iconEl) iconEl.classList.remove('active');
+            }
+        };
+
+        // --- 系统启动与初始化 ---
+        function startSystem() {
+            desktop.style.backgroundImage = `url(${wallpaperUrl})`;
+            const bootScreen = document.getElementById('boot-screen');
+            bootScreen.style.opacity = '0';
+            setTimeout(() => {
+                bootScreen.classList.add('hidden');
+                desktop.classList.remove('hidden');
+                desktop.style.opacity = '1';
+                document.getElementById('taskbar-container').style.transform = 'translateY(0) translateX(-50%)';
+            }, 500);
+        }
+
+        function populateApps() {
+            // Populate App Drawer
+            apps.forEach(app => {
+                const appElement = document.createElement('div');
+                appElement.className = 'app-icon-container flex flex-col items-center p-2 rounded-xl cursor-pointer';
+                appElement.dataset.appId = app.id;
+                appElement.dataset.appName = app.name;
+                appElement.dataset.appIcon = app.icon;
+                appElement.innerHTML = `<img src="${app.icon}" alt="${app.name}" class="w-12 h-12 mb-2 pointer-events-none"><span class="text-xs text-center truncate w-full pointer-events-none">${app.name}</span>`;
+                appGrid.appendChild(appElement);
+            });
+            // Populate Pinned Apps
+            apps.filter(app => app.pinned).forEach(app => {
+                const pinnedAppElement = document.createElement('button');
+                pinnedAppElement.className = 'p-2 rounded-xl dock-icon';
+                pinnedAppElement.dataset.appId = app.id;
+                pinnedAppElement.dataset.appName = app.name;
+                pinnedAppElement.dataset.appIcon = app.icon;
+                pinnedAppElement.dataset.pinned = 'true';
+                pinnedAppElement.innerHTML = `<img src="${app.icon}" alt="${app.name}" class="w-8 h-8">`;
+                pinnedAppsContainer.appendChild(pinnedAppElement);
+            });
+        }
+
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('time').textContent = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+            document.getElementById('date').textContent = now.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
+        }
+        
+        function openAppDrawer() {
+            if (!appDrawer.classList.contains('hidden')) return;
+            appDrawer.classList.remove('hidden');
+            const icons = appGrid.querySelectorAll('.app-icon-container');
+            icons.forEach((icon, index) => {
+                icon.style.transitionDelay = `${index * 20}ms`;
+            });
+        }
+
+        function closeAppDrawer() {
+            if (appDrawer.classList.contains('hidden')) return;
+            appDrawer.classList.add('hidden');
+        }
+
+        // --- 文档处理函数 ---
+        function handleWordFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            const contentArea = document.getElementById('word-content');
+            contentArea.innerHTML = '<p>正在加载文档...</p>';
+
+            reader.onload = function(e) {
+                const arrayBuffer = e.target.result;
+                mammoth.convertToHtml({ arrayBuffer: arrayBuffer })
+                    .then(result => {
+                        contentArea.innerHTML = result.value;
+                    })
+                    .catch(err => {
+                        console.error(err);
+                        contentArea.innerHTML = `<p class="text-red-500">无法加载文档: ${err.message}</p>`;
+                    });
+            };
+            reader.readAsArrayBuffer(file);
+            event.target.value = null; 
+        }
+
+        function handleExcelFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            const contentArea = document.getElementById('excel-content');
+            contentArea.innerHTML = '<p>正在加载表格...</p>';
+
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                try {
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const html = XLSX.utils.sheet_to_html(worksheet);
+                    contentArea.innerHTML = `<table class="excel-table">${html}</table>`;
+                } catch (err) {
+                     console.error(err);
+                     contentArea.innerHTML = `<p class="text-red-500">无法加载表格: ${err.message}</p>`;
+                }
+            };
+            reader.readAsArrayBuffer(file);
+            event.target.value = null;
+        }
+
+        function handlePptxFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const contentArea = document.getElementById('powerpoint-content');
+            contentArea.innerHTML = `<p class="text-blue-500">已加载文件: ${file.name}。<br>PowerPoint 预览功能正在开发中，敬请期待。</p>`;
+            event.target.value = null;
+        }
+
+        // Word 保存函数
+        async function saveWordFile() {
+            const contentArea = document.getElementById('word-content');
+            const saveButton = document.getElementById('word-save-btn');
+            
+            if (typeof htmlDocx === 'undefined' || typeof saveAs === 'undefined') {
+                console.error('FileSaver.js or html-docx-js not loaded.');
+                const originalHTML = saveButton.innerHTML;
+                saveButton.innerHTML = '保存失败!';
+                saveButton.classList.add('!bg-red-500', 'text-white');
+                setTimeout(() => { 
+                    saveButton.innerHTML = originalHTML;
+                    saveButton.classList.remove('!bg-red-500', 'text-white');
+                }, 2500);
+                return;
+            }
+
+            const htmlContent = contentArea.innerHTML;
+            const blob = await htmlDocx.asBlob(htmlContent);
+            saveAs(blob, 'document.docx');
+        }
+
+        // Word 文本样式函数
+        function formatWordText(command) {
+            document.execCommand(command, false, null);
+        }
+
+        // --- Gemini 应用函数 ---
+        function displayGeminiMessage(content, isUser, imageUrl = null, isLoading = false) {
+            const messagesArea = document.getElementById('gemini-messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `gemini-message ${isUser ? 'user' : 'ai'}`;
+
+            let messageContent = '';
+            if (isLoading) {
+                 messageContent = `<div class="gemini-bubble loading">
+                    <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+                 </div>`;
+            } else {
+                let textContent = content ? (isUser ? `<p>${content.replace(/\n/g, '<br>')}</p>`: DOMPurify.sanitize(content)) : '';
+                let imageContent = imageUrl ? `<img src="${imageUrl}" class="sent-image">` : '';
+                messageContent = `<div class="gemini-bubble">${textContent}${imageContent}</div>`;
+            }
+            
+            messageDiv.innerHTML = messageContent;
+            messagesArea.appendChild(messageDiv);
+            messagesArea.scrollTop = messagesArea.scrollHeight;
+            return messageDiv; // Return the element to update it later
+        }
+
+        async function handleGeminiSend() {
+            const textInput = document.getElementById('gemini-text-input');
+            const message = textInput.value.trim();
+
+            if (!message && !geminiAttachmentUrl) return;
+
+            displayGeminiMessage(message, true, geminiAttachmentUrl);
+            const loadingBubble = displayGeminiMessage(null, false, null, true);
+            
+            // [修改] 更新模型名称并添加格式化指令
+            const model = 'gemini-1.5-flash-latest';
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
+            const formattingInstruction = "\n\n---\n指令: 请将您的回复格式化为HTML。使用Tailwind CSS类进行样式设置（例如, <p class='font-bold'>, <ul class='list-disc pl-5'>）。不要将整个回复包裹在像 ```html ... ``` 这样的markdown代码块中。";
+            const fullPrompt = message + formattingInstruction;
+            
+            let parts = [];
+            if (message) {
+                parts.push({ text: fullPrompt });
+            }
+            if (geminiAttachmentUrl) {
+                const base64Data = geminiAttachmentUrl.split(',')[1];
+                parts.push({
+                    inline_data: {
+                        mime_type: "image/jpeg", 
+                        data: base64Data
+                    }
+                });
+            }
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ parts }] })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error.message || 'API request failed');
+                }
+
+                const result = await response.json();
+                const aiResponseText = result.candidates[0].content.parts[0].text;
+                
+                loadingBubble.remove();
+                displayGeminiMessage(aiResponseText, false);
+
+            } catch (error) {
+                console.error("Gemini API Error:", error);
+                loadingBubble.remove();
+                displayGeminiMessage(`抱歉，出错了: ${error.message}`, false);
+            }
+
+            // Reset input
+            textInput.value = '';
+            textInput.style.height = 'auto';
+            removeGeminiAttachment();
+        }
+
+        function handleGeminiFileInput(event) {
+            const file = event.target.files[0];
+            if (!file || !file.type.startsWith('image/')) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                geminiAttachmentUrl = e.target.result;
+                const previewContainer = document.getElementById('gemini-attachment-preview');
+                previewContainer.innerHTML = `
+                    <img src="${geminiAttachmentUrl}" alt="Attachment Preview">
+                    <div class="remove-attachment-btn" onclick="removeGeminiAttachment()">×</div>
+                `;
+                previewContainer.classList.remove('hidden');
+            };
+            reader.readAsDataURL(file);
+            event.target.value = null;
+        }
+        
+        function removeGeminiAttachment() {
+            geminiAttachmentUrl = null;
+            document.getElementById('gemini-attachment-preview').classList.add('hidden');
+            document.getElementById('gemini-attachment-preview').innerHTML = '';
+        }
+
+        function autoResizeGeminiTextarea() {
+            const textarea = document.getElementById('gemini-text-input');
+            textarea.style.height = 'auto';
+            textarea.style.height = (textarea.scrollHeight) + 'px';
+        }
+
+
+        function setupEventListeners() {
+            // 应用抽屉
+            document.getElementById('start-button').addEventListener('click', (e) => {
+                e.stopPropagation();
+                appDrawer.classList.contains('hidden') ? openAppDrawer() : closeAppDrawer();
+            });
+            desktop.addEventListener('click', (e) => {
+                if (!e.target.closest('#app-drawer') && !e.target.closest('#start-button')) {
+                    closeAppDrawer();
+                }
+            });
+            
+            // 打开应用 (从应用抽屉或任务栏)
+            desktop.addEventListener('click', (e) => {
+                const appIcon = e.target.closest('[data-app-id]');
+                if (!appIcon) return;
+                
+                const { appId, appName, appIcon: iconUrl } = appIcon.dataset;
+                const win = document.querySelector(`.window[data-app-id="${appId}"]`);
+
+                if (appId) {
+                    if (win && !win.classList.contains('hidden')) {
+                         windowManager.focus(win.id);
+                    } else {
+                        windowManager.open(appId, appName, iconUrl);
+                    }
+                    closeAppDrawer();
+                }
+            });
+
+            // 窗口交互
+            document.querySelectorAll('.window').forEach(win => {
+                win.addEventListener('mousedown', () => windowManager.focus(win.id));
+                
+                // 拖拽
+                const titleBar = win.querySelector('.title-bar');
+                titleBar.addEventListener('mousedown', (e) => {
+                    if (e.target.closest('button') || win.classList.contains('maximized')) return; 
+                    let offsetX = e.clientX - win.offsetLeft;
+                    let offsetY = e.clientY - win.offsetTop;
+                    function moveHandler(e) {
+                        win.style.left = `${e.clientX - offsetX}px`;
+                        win.style.top = `${e.clientY - offsetY}px`;
+                    }
+                    function upHandler() {
+                        document.removeEventListener('mousemove', moveHandler);
+                        document.removeEventListener('mouseup', upHandler);
+                    }
+                    document.addEventListener('mousemove', moveHandler);
+                    document.addEventListener('mouseup', upHandler);
+                });
+
+                // 窗口控件
+                win.querySelector('.close-btn')?.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    windowManager.close(e.target.closest('[data-window]').dataset.window);
+                });
+                win.querySelector('.minimize-btn')?.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    windowManager.minimize(e.target.closest('[data-window]').dataset.window);
+                });
+                win.querySelector('.maximize-btn')?.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    windowManager.maximize(e.target.closest('[data-window]').dataset.window);
+                });
+
+
+                // 设置面板交互
+                if (win.id === 'settings-window') {
+                    const sidebar = win.querySelector('.sidebar');
+                    const contentArea = win.querySelector('.content-area');
+
+                    const switchPanel = (panelId) => {
+                        contentArea.querySelector('.panel.active')?.classList.remove('active');
+                        contentArea.querySelector(`#${panelId}`)?.classList.add('active');
+                    }
+
+                    sidebar.addEventListener('click', (e) => {
+                        const item = e.target.closest('.sidebar-item');
+                        if (!item) return;
+                        
+                        sidebar.querySelector('.active')?.classList.remove('active');
+                        item.classList.add('active');
+
+                        switchPanel(`panel-${item.dataset.panel}`);
+                    });
+                    
+                    // 子面板导航
+                    contentArea.addEventListener('click', (e) => {
+                        const subpanelTarget = e.target.closest('[data-subpanel-target]');
+                        const subpanelBack = e.target.closest('[data-subpanel-back]');
+
+                        if (subpanelTarget) {
+                            switchPanel(`panel-${subpanelTarget.dataset.subpanelTarget}`);
+                        } else if (subpanelBack) {
+                            switchPanel(`panel-${subpanelBack.dataset.subpanelBack}`);
+                        }
+                    });
+
+                    // Toggle switch 交互
+                    win.querySelectorAll('.toggle-switch').forEach(toggle => {
+                        toggle.addEventListener('click', () => {
+                            toggle.classList.toggle('on');
+                        });
+                    });
+
+                    // 账户信息保存
+                    const saveBtn = document.getElementById('save-account-btn');
+                    saveBtn.addEventListener('click', () => {
+                        const newUsername = document.getElementById('username-input').value;
+                        const newEmail = document.getElementById('email-input').value;
+                        const newAvatarUrl = document.getElementById('avatar-input').value;
+
+                        document.getElementById('sidebar-username').textContent = newUsername;
+                        document.getElementById('sidebar-email').textContent = newEmail;
+                        
+                        if (newAvatarUrl) {
+                            const sidebarAvatar = document.getElementById('sidebar-avatar');
+                            const panelAvatar = document.getElementById('account-panel-avatar');
+                            sidebarAvatar.src = newAvatarUrl;
+                            panelAvatar.src = newAvatarUrl;
+                            document.getElementById('avatar-input').value = '';
+                        }
+
+                        saveBtn.textContent = '已保存';
+                        saveBtn.disabled = true;
+                        setTimeout(() => {
+                            saveBtn.textContent = '保存';
+                            saveBtn.disabled = false;
+                        }, 2000);
+                    });
+
+                    // 显示与亮度
+                    const lightBtn = document.getElementById('light-mode-btn');
+                    const darkBtn = document.getElementById('dark-mode-btn');
+                    const autoBtn = document.getElementById('auto-mode-btn');
+                    const autoOptions = document.getElementById('auto-mode-options');
+
+                    function updateAppearanceSelection(selected) {
+                        [lightBtn, darkBtn, autoBtn].forEach(btn => {
+                            btn.querySelector('div').classList.remove('border-blue-500', 'shadow-lg');
+                            btn.querySelector('div').classList.add('border-transparent');
+                        });
+                        selected.querySelector('div').classList.add('border-blue-500', 'shadow-lg');
+                        selected.querySelector('div').classList.remove('border-transparent');
+                    }
+
+                    lightBtn.addEventListener('click', () => {
+                        document.documentElement.classList.remove('dark');
+                        autoOptions.classList.add('hidden');
+                        updateAppearanceSelection(lightBtn);
+                    });
+                    darkBtn.addEventListener('click', () => {
+                        document.documentElement.classList.add('dark');
+                        autoOptions.classList.add('hidden');
+                        updateAppearanceSelection(darkBtn);
+                    });
+                    autoBtn.addEventListener('click', () => {
+                        autoOptions.classList.remove('hidden');
+                        updateAppearanceSelection(autoBtn);
+                    });
+                    
+                    // 粗体文本
+                    document.getElementById('bold-text-toggle').addEventListener('click', (e) => {
+                        document.body.classList.toggle('bold-text-enabled');
+                    });
+                }
+
+                // 浏览器交互
+                if (win.id === 'browser-window') {
+                    const iframe = win.querySelector('#browser-iframe');
+                    const urlInput = win.querySelector('#browser-url');
+                    win.querySelector('#browser-refresh').addEventListener('click', () => iframe.src = iframe.src);
+                    win.querySelector('#browser-back').addEventListener('click', () => iframe.contentWindow.history.back());
+                    win.querySelector('#browser-forward').addEventListener('click', () => iframe.contentWindow.history.forward());
+                    urlInput.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter') {
+                            let url = urlInput.value;
+                            if (!url.startsWith('http')) {
+                                url = 'https://' + url;
+                            }
+                            iframe.src = url;
+                        }
+                    });
+                }
+            });
+
+            // 设备重命名
+            const renameModal = document.getElementById('rename-device-modal');
+            const renameInput = document.getElementById('rename-device-input');
+            const deviceNameText = document.getElementById('device-name-text');
+
+            document.getElementById('edit-device-name-btn').addEventListener('click', () => {
+                renameInput.value = deviceNameText.textContent;
+                renameModal.classList.add('visible');
+            });
+            document.getElementById('cancel-rename-btn').addEventListener('click', () => {
+                renameModal.classList.remove('visible');
+            });
+            document.getElementById('save-rename-btn').addEventListener('click', () => {
+                deviceNameText.textContent = renameInput.value;
+                renameModal.classList.remove('visible');
+            });
+
+            // 任务栏悬停显示
+            desktop.addEventListener('mousemove', (e) => {
+                if(desktop.classList.contains('taskbar-hidden')) {
+                    if (e.clientY > window.innerHeight - 10) {
+                        desktop.classList.remove('taskbar-hidden');
+                    }
+                }
+            });
+            document.getElementById('taskbar-container').addEventListener('mouseleave', () => {
+                windowManager.checkMaximizedState();
+            });
+
+            // 文件输入监听
+            document.getElementById('word-file-input').addEventListener('change', handleWordFile);
+            document.getElementById('excel-file-input').addEventListener('change', handleExcelFile);
+            document.getElementById('pptx-file-input').addEventListener('change', handlePptxFile);
+
+            // Word 工具栏监听
+            document.getElementById('word-save-btn').addEventListener('click', saveWordFile);
+            document.getElementById('word-bold-btn').addEventListener('click', () => formatWordText('bold'));
+            document.getElementById('word-italic-btn').addEventListener('click', () => formatWordText('italic'));
+            document.getElementById('word-underline-btn').addEventListener('click', () => formatWordText('underline'));
+        
+            // Gemini 事件监听
+            document.getElementById('gemini-send-btn').addEventListener('click', handleGeminiSend);
+            document.getElementById('gemini-text-input').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleGeminiSend();
+                }
+            });
+            document.getElementById('gemini-text-input').addEventListener('input', autoResizeGeminiTextarea);
+            document.getElementById('gemini-file-input').addEventListener('change', handleGeminiFileInput);
+        }
+
+        // --- 初始化 ---
+        window.onload = () => {
+            const imageUrls = [wallpaperUrl, ...apps.map(app => app.icon)];
+            const promises = imageUrls.map(src => new Promise(resolve => {
+                const img = new Image();
+                img.src = src;
+                img.onload = img.onerror = resolve;
+            }));
+            Promise.all(promises).then(() => setTimeout(startSystem, 1500));
+
+            populateApps();
+            updateClock();
+            setInterval(updateClock, 1000);
+            setupEventListeners();
+        };
+    </script>
+</body>
+</html>
